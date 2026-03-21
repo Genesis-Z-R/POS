@@ -112,9 +112,7 @@
            fetchAPI('/dashboard/payment-methods')
         ]);
 
-        // Common Chart Defaults
-        Chart.defaults.color = '#cbd5e1';
-        Chart.defaults.scale.grid.color = 'rgba(255, 255, 255, 0.05)';
+        // Chart colors managed by dynamic theme in app.js
 
         // 1. Sales Trend Line Chart
         const labelsTrend = trendData.map(d => d.date.split('T')[0]);

@@ -110,8 +110,46 @@ function formatCurrency(amount) {
   return `GHS ${parseFloat(amount).toFixed(2)}`;
 }
 
+// Theme Logic
+function initTheme() {
+    const savedTheme = localStorage.getItem('pos_theme') || 'light';
+    if (savedTheme === 'dark') {
+        document.body.classList.add('dark-mode');
+    }
+    
+    const fab = document.createElement('button');
+    fab.className = 'theme-toggle-fab';
+    fab.innerHTML = savedTheme === 'dark' ? '<i class="fa-solid fa-sun" style="color: #f59e0b;"></i>' : '<i class="fa-solid fa-moon"></i>';
+    fab.title = "Toggle Theme";
+    
+    // Manage Chart.js dynamic colors
+    const applyChartTheme = (isDark) => {
+        if (typeof Chart !== 'undefined') {
+            Chart.defaults.color = isDark ? '#cbd5e1' : '#475569';
+            Chart.defaults.scale.grid.color = isDark ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.05)';
+            Object.values(Chart.instances).forEach(chart => {
+                if (chart.options.scales?.x) chart.options.scales.x.grid.color = Chart.defaults.scale.grid.color;
+                if (chart.options.scales?.y) chart.options.scales.y.grid.color = Chart.defaults.scale.grid.color;
+                chart.update();
+            });
+        }
+    };
+
+    fab.addEventListener('click', () => {
+        document.body.classList.toggle('dark-mode');
+        const isDark = document.body.classList.contains('dark-mode');
+        localStorage.setItem('pos_theme', isDark ? 'dark' : 'light');
+        fab.innerHTML = isDark ? '<i class="fa-solid fa-sun" style="color: #f59e0b;"></i>' : '<i class="fa-solid fa-moon"></i>';
+        applyChartTheme(isDark);
+    });
+    
+    document.body.appendChild(fab);
+    applyChartTheme(savedTheme === 'dark');
+}
+
 // Update UI profile elements if present
 document.addEventListener('DOMContentLoaded', () => {
+    initTheme();
     const user = getAuthUser();
     
     // Inject FontAwesome globally if not present
