@@ -1,5 +1,7 @@
 // Global State
-const API_URL = 'http://localhost:5000/api';
+const API_URL = window.location.protocol === 'file:' 
+  ? 'http://localhost:5000/api' 
+  : '/api';
 
 // Utility: Show Toast Notification
 function showToast(message, type = 'info') {

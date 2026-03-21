@@ -24,10 +24,23 @@ app.use('/api/sales', require('./routes/salesRoutes'));
 app.use('/api/dashboard', require('./routes/dashboardRoutes'));
 app.use('/api/reports', require('./routes/reportRoutes'));
 
-// Base Route
-app.get('/', (req, res) => {
-  res.json({ message: 'Welcome to the POS API' });
+// Protect sensitive files from static serving
+const sensitiveFiles = ['.env', 'server.js', 'package.json', 'package-lock.json', 'vercel.json', 'supabase_setup.md'];
+const sensitiveDirs = ['/routes', '/controllers', '/models', '/config', '/middleware', '/services'];
+
+app.use((req, res, next) => {
+  const reqPath = req.path;
+  const isSensitiveFile = sensitiveFiles.some(file => reqPath === `/${file}`);
+  const isSensitiveDir = sensitiveDirs.some(dir => reqPath.startsWith(dir));
+  
+  if (isSensitiveFile || isSensitiveDir) {
+    return res.status(403).send('Forbidden');
+  }
+  next();
 });
+
+// Serve static frontend files from the root directory
+app.use(express.static(__dirname));
 
 // Error handling middleware
 app.use((err, req, res, next) => {
@@ -35,8 +48,13 @@ app.use((err, req, res, next) => {
   res.status(500).json({ message: 'Server Error', error: err.message });
 });
 
-const PORT = process.env.PORT || 5000;
+// Export app for serverless deployment (Vercel)
+module.exports = app;
 
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
-});
+// Only listen if not running in a Vercel serverless environment
+if (!process.env.VERCEL) {
+  const PORT = process.env.PORT || 5000;
+  app.listen(PORT, () => {
+    console.log(`Server running on port ${PORT}`);
+  });
+}
