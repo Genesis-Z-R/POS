@@ -1,0 +1,461 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Point of Sale - Capstone POS</title>
+  <link rel="stylesheet" href="style.css">
+  <style>
+    .pos-layout {
+      display: grid;
+      grid-template-columns: 2fr 1fr;
+      gap: 2rem;
+      height: calc(100vh - var(--header-height) - 4rem);
+    }
+    .product-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+      gap: 1rem;
+      overflow-y: auto;
+      padding-right: 1rem;
+    }
+    .product-card {
+      background: var(--glass-bg);
+      border: 1px solid var(--glass-border);
+      border-radius: var(--border-radius-sm);
+      padding: 1.5rem;
+      text-align: center;
+      cursor: pointer;
+      transition: all var(--transition-fast);
+      user-select: none;
+    }
+    .product-card:hover {
+      background: rgba(59, 130, 246, 0.2);
+      border-color: var(--accent-primary);
+    }
+    .product-card h4 { font-size: 1.1rem; margin-bottom: 0.5rem; }
+    .product-card .price { font-weight: 700; color: var(--accent-primary); }
+    .product-card .stock { font-size: 0.8rem; color: var(--text-muted); margin-top: 0.5rem; }
+    
+    .cart-section {
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+    }
+    .cart-items {
+      flex: 1;
+      overflow-y: auto;
+      margin-bottom: 1rem;
+    }
+    .cart-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 1rem;
+      background: rgba(255, 255, 255, 0.05);
+      border-radius: var(--border-radius-sm);
+      margin-bottom: 0.5rem;
+    }
+    .cart-item-info h5 { margin: 0; font-size: 1rem; }
+    .cart-item-info p { margin: 0; color: var(--text-muted); font-size: 0.9rem; }
+    .cart-controls { display: flex; align-items: center; gap: 0.5rem; }
+    .qty-btn { background: none; border: 1px solid var(--glass-border); color: white; border-radius: 4px; padding: 2px 8px; cursor: pointer; }
+    
+    .totals-section {
+      background: rgba(0,0,0,0.2);
+      padding: 1.5rem;
+      border-radius: var(--border-radius-sm);
+    }
+    .total-row { display: flex; justify-content: space-between; margin-bottom: 0.5rem; font-size: 1.1rem; }
+    .grand-total { font-size: 1.8rem; font-weight: 700; color: var(--accent-primary); border-top: 1px solid var(--glass-border); padding-top: 1rem; margin-top: 0.5rem;}
+    
+    #paymentModal {
+        display: none;
+        position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+        background: rgba(0,0,0,0.8); z-index: 1000;
+        align-items: center; justify-content: center;
+    }
+    .modal-content {
+        background: var(--bg-secondary); border: 1px solid var(--glass-border);
+        border-radius: var(--border-radius); padding: 2.5rem; width: 90%; max-width: 500px;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="app-container">
+    <!-- Sidebar (Same as Dashboard, highlight POS) -->
+    <aside class="sidebar">
+      <div class="sidebar-header"><i class="fa-solid fa-store" style="margin-right: 10px;"></i> POS Flow</div>
+      <ul class="nav-links">
+        <li class="nav-item sys-admin"><a href="dashboard.html" class="nav-link"><i class="fa-solid fa-chart-line"></i> Dashboard</a></li>
+        <li class="nav-item"><a href="pos.html" class="nav-link active"><i class="fa-solid fa-cash-register"></i> POS Screen</a></li>
+        <li class="nav-item sys-admin"><a href="products.html" class="nav-link"><i class="fa-solid fa-box"></i> Products & Inventory</a></li>
+        <li class="nav-item sys-admin"><a href="users.html" class="nav-link"><i class="fa-solid fa-users"></i> Users & Customers</a></li>
+        <li class="nav-item sys-admin"><a href="reports.html" class="nav-link"><i class="fa-solid fa-file-invoice"></i> Reports</a></li>
+      </ul>
+      <div style="padding: 20px;"><button class="btn btn-danger logout-btn" style="width: 100%;"><i class="fa-solid fa-right-from-bracket"></i> Logout</button></div>
+    </aside>
+
+    <main class="main-content">
+      <header class="top-header">
+        <h2>Cash Register</h2>
+        <div class="user-profile">
+          <div class="user-name-display" style="font-weight: 600;">Loading...</div>
+          <div class="user-avatar user-name-display">U</div>
+        </div>
+      </header>
+
+      <div class="content-wrapper animate-fade-in pos-layout">
+        
+        <!-- Products Grid -->
+        <div class="products-section">
+            <div style="margin-bottom: 20px;">
+                <input type="text" id="productSearch" class="form-control" placeholder="Search products by name or barcode...">
+            </div>
+            <div class="product-grid" id="productGrid">
+                <!-- Products dynamically loaded here -->
+            </div>
+        </div>
+
+        <!-- Cart Section -->
+        <div class="glass-card cart-section">
+            <h3 style="margin-bottom: 1rem; border-bottom: 1px solid var(--glass-border); padding-bottom: 0.5rem;">Current Sale</h3>
+            
+            <div style="margin-bottom: 1rem;">
+                <div style="display: flex; gap: 0.5rem;">
+                    <input type="text" id="customerSearch" class="form-control" placeholder="Optional: Assign Customer (Search by Email/Phone/Name)">
+                    <button id="newCustomerBtn" class="btn btn-secondary" style="white-space: nowrap;"><i class="fa-solid fa-plus"></i></button>
+                </div>
+                <div id="customerSelected" style="color: var(--info); font-size: 0.9rem; margin-top: 5px;"></div>
+            </div>
+
+            <div class="cart-items" id="cartContainer">
+                <div style="text-align: center; color: var(--text-muted); padding-top: 2rem;">Cart is empty</div>
+            </div>
+
+            <div class="totals-section">
+                <div class="total-row"><span>Subtotal:</span> <span id="cartSubtotal">GHS 0.00</span></div>
+                <div class="total-row grand-total"><span>Total:</span> <span id="cartTotal">GHS 0.00</span></div>
+                <button class="btn btn-primary" id="checkoutBtn" style="width: 100%; margin-top: 1rem; font-size: 1.2rem; padding: 1rem;"><i class="fa-solid fa-credit-card"></i> Pay Now</button>
+                <button class="btn btn-secondary" id="clearCartBtn" style="width: 100%; margin-top: 0.5rem;"><i class="fa-solid fa-trash"></i> Clear Cart</button>
+            </div>
+        </div>
+
+      </div>
+    </main>
+  </div>
+
+  <!-- Checkout Modal -->
+  <div id="paymentModal">
+      <div class="modal-content">
+          <h2 style="margin-bottom: 1.5rem; text-align: center;">Complete Payment</h2>
+          <h1 style="text-align: center; margin-bottom: 2rem; color: var(--accent-primary);" id="modalTotalAmount">GHS 0.00</h1>
+          
+          <div class="form-group">
+              <label class="form-label">Payment Method</label>
+              <select id="paymentMethod" class="form-control" style="background: var(--bg-tertiary);">
+                  <option value="Cash">Cash</option>
+                  <option value="Mobile Money">MTN Mobile Money</option>
+                  <option value="Card">Credit/Debit Card</option>
+              </select>
+          </div>
+
+          <div class="form-group" id="momoPhoneDiv" style="display: none;">
+              <label class="form-label">Customer Mobile Money Number</label>
+              <input type="text" id="momoPhone" class="form-control" placeholder="024 XXX XXXX">
+          </div>
+
+          <div class="form-group" style="margin-top: 1rem;">
+              <label class="form-label">Receipt Type</label>
+              <select id="receiptType" class="form-control" style="background: var(--bg-tertiary);">
+                  <option value="none">None</option>
+                  <option value="printed">Printed Receipt</option>
+                  <option value="email">Email Receipt</option>
+              </select>
+          </div>
+
+          <div style="display: flex; gap: 1rem; margin-top: 2rem;">
+               <button class="btn btn-secondary" id="cancelPayBtn" style="flex: 1;">Cancel</button>
+               <button class="btn btn-primary" id="confirmPayBtn" style="flex: 1;">Confirm Sale</button>
+          </div>
+      </div>
+  </div>
+
+  <!-- New Customer Modal -->
+  <div id="newCustomerModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 1000; align-items: center; justify-content: center;">
+      <div class="modal-content">
+          <h3 style="margin-bottom: 1.5rem; text-align: center;">New Customer Profile</h3>
+          <div class="form-group">
+              <label class="form-label">Full Name *</label>
+              <input type="text" id="ncName" class="form-control">
+          </div>
+          <div class="form-group">
+              <label class="form-label">Email (For receipts/search)</label>
+              <input type="email" id="ncEmail" class="form-control">
+          </div>
+          <div class="form-group">
+              <label class="form-label">Phone</label>
+              <input type="text" id="ncPhone" class="form-control">
+          </div>
+          <div style="display: flex; gap: 1rem; margin-top: 2rem;">
+               <button class="btn btn-secondary" id="ncCancelBtn" style="flex: 1;">Cancel</button>
+               <button class="btn btn-primary" id="ncSaveBtn" style="flex: 1;">Save Customer</button>
+          </div>
+      </div>
+  </div>
+
+  <script src="app.js"></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', async () => {
+      const user = requireAuth(['admin', 'manager', 'cashier']);
+      if (!user) return;
+
+      // Hide sys-admin nav links for cashiers
+      if (user.role === 'cashier') {
+         document.querySelectorAll('.sys-admin').forEach(el => el.style.display = 'none');
+      }
+
+      let products = [];
+      let cart = []; // { product_id, product_name, price, quantity, max_stock }
+      let assignedCustomer = null;
+
+      // DOM Elements
+      const grid = document.getElementById('productGrid');
+      const cartContainer = document.getElementById('cartContainer');
+      const totalEl = document.getElementById('cartTotal');
+      const subtotalEl = document.getElementById('cartSubtotal');
+      const modal = document.getElementById('paymentModal');
+      
+      try {
+          // Fetch products
+          products = await fetchAPI('/products');
+          renderProducts(products);
+      } catch (err) {
+          showToast('Failed to load products', 'error');
+      }
+
+      function renderProducts(list) {
+          grid.innerHTML = '';
+          list.forEach(p => {
+              const card = document.createElement('div');
+              card.className = 'product-card';
+              // Disable if out of stock
+              if (parseInt(p.stock_quantity) <= 0) {
+                  card.style.opacity = '0.5';
+                  card.style.cursor = 'not-allowed';
+              } else {
+                  card.onclick = () => addToCart(p);
+              }
+              card.innerHTML = `
+                  <h4>${p.product_name}</h4>
+                  <div class="price">GHS ${parseFloat(p.price).toFixed(2)}</div>
+                  <div class="stock">In Stock: ${p.stock_quantity}</div>
+              `;
+              grid.appendChild(card);
+          });
+      }
+
+      function addToCart(p) {
+          const existing = cart.find(i => i.product_id === p.product_id);
+          const maxStock = parseInt(p.stock_quantity);
+
+          if (existing) {
+              if (existing.quantity >= maxStock) return showToast('Not enough stock', 'error');
+              existing.quantity++;
+          } else {
+              if (maxStock <= 0) return;
+              cart.push({
+                  product_id: p.product_id,
+                  product_name: p.product_name,
+                  price: parseFloat(p.price),
+                  quantity: 1,
+                  max_stock: maxStock
+              });
+          }
+          renderCart();
+      }
+
+      function updateQty(id, change) {
+          const item = cart.find(i => i.product_id === id);
+          if (!item) return;
+
+          item.quantity += change;
+          if (item.quantity > item.max_stock) {
+             item.quantity = item.max_stock;
+             showToast('Max stock reached', 'warning');
+          }
+          if (item.quantity <= 0) {
+             cart = cart.filter(i => i.product_id !== id);
+          }
+          renderCart();
+      }
+
+      function renderCart() {
+          if (cart.length === 0) {
+              cartContainer.innerHTML = '<div style="text-align: center; color: var(--text-muted); padding-top: 2rem;">Cart is empty</div>';
+              totalEl.textContent = 'GHS 0.00';
+              subtotalEl.textContent = 'GHS 0.00';
+              return;
+          }
+
+          cartContainer.innerHTML = '';
+          let total = 0;
+          cart.forEach(item => {
+              const itemTotal = item.price * item.quantity;
+              total += itemTotal;
+              
+              const div = document.createElement('div');
+              div.className = 'cart-item';
+              div.innerHTML = `
+                 <div class="cart-item-info">
+                    <h5>${item.product_name}</h5>
+                    <p>GHS ${item.price.toFixed(2)}</p>
+                 </div>
+                 <div class="cart-controls">
+                    <button class="qty-btn" onclick="updateQty(${item.product_id}, -1)">-</button>
+                    <span>${item.quantity}</span>
+                    <button class="qty-btn" onclick="updateQty(${item.product_id}, 1)">+</button>
+                 </div>
+                 <div style="font-weight: 600;">GHS ${itemTotal.toFixed(2)}</div>
+              `;
+              cartContainer.appendChild(div);
+          });
+
+          totalEl.textContent = `GHS ${total.toFixed(2)}`;
+          subtotalEl.textContent = `GHS ${total.toFixed(2)}`;
+      }
+
+      // Customer Assignment
+      const custSearch = document.getElementById('customerSearch');
+      custSearch.addEventListener('change', async (e) => {
+          const q = e.target.value.trim();
+          if(!q) { assignedCustomer = null; document.getElementById('customerSelected').textContent=''; return;}
+          
+          try {
+              const cRes = await fetchAPI(`/customers/search?q=${q}`);
+              if(cRes.length > 0) {
+                  assignedCustomer = cRes[0];
+                  document.getElementById('customerSelected').textContent = `Assigned: ${assignedCustomer.name}`;
+              } else {
+                  showToast('Customer not found', 'warning');
+                  assignedCustomer = null;
+                  document.getElementById('customerSelected').textContent = '';
+              }
+          } catch(err) { console.error(err); }
+      });
+
+      // Product Search filter
+      document.getElementById('productSearch').addEventListener('input', (e) => {
+          const q = e.target.value.toLowerCase();
+          const filtered = products.filter(p => p.product_name.toLowerCase().includes(q) || (p.barcode && p.barcode.includes(q)));
+          renderProducts(filtered);
+      });
+
+      document.getElementById('clearCartBtn').addEventListener('click', () => { cart = []; renderCart(); });
+
+      // -- New Customer Modal Logic --
+      const ncModal = document.getElementById('newCustomerModal');
+      document.getElementById('newCustomerBtn').addEventListener('click', () => ncModal.style.display = 'flex');
+      document.getElementById('ncCancelBtn').addEventListener('click', () => ncModal.style.display = 'none');
+      
+      document.getElementById('ncSaveBtn').addEventListener('click', async () => {
+          const name = document.getElementById('ncName').value;
+          const email = document.getElementById('ncEmail').value;
+          const phone = document.getElementById('ncPhone').value;
+          
+          if (!name) return showToast('Name is required', 'warning');
+          
+          const saveBtn = document.getElementById('ncSaveBtn');
+          saveBtn.disabled = true; saveBtn.textContent = 'Saving...';
+          
+          try {
+              const customerData = await fetchAPI('/customers', {
+                  method: 'POST',
+                  body: JSON.stringify({ name, email, phone })
+              });
+              showToast('Customer Profile Created Successfully', 'success');
+              ncModal.style.display = 'none';
+              assignedCustomer = customerData;
+              // Clear fields
+              document.getElementById('ncName').value = '';
+              document.getElementById('ncEmail').value = '';
+              document.getElementById('ncPhone').value = '';
+              
+              custSearch.value = '';
+              document.getElementById('customerSelected').textContent = `Assigned: ${assignedCustomer.name}`;
+          } catch (err) {
+              showToast(err.message, 'error');
+          } finally {
+              saveBtn.disabled = false; saveBtn.textContent = 'Save Customer';
+          }
+      });
+
+      // -- Checkout Modal Logic --
+      document.getElementById('checkoutBtn').addEventListener('click', () => {
+          if(cart.length === 0) return showToast('Cart is empty', 'warning');
+          document.getElementById('modalTotalAmount').textContent = totalEl.textContent;
+          modal.style.display = 'flex';
+      });
+
+      document.getElementById('cancelPayBtn').addEventListener('click', () => {
+          modal.style.display = 'none';
+      });
+
+      const paymentMethodDropdown = document.getElementById('paymentMethod');
+      paymentMethodDropdown.addEventListener('change', (e) => {
+          document.getElementById('momoPhoneDiv').style.display = (e.target.value === 'Mobile Money') ? 'block' : 'none';
+      });
+
+      // Confirm Sale
+      document.getElementById('confirmPayBtn').addEventListener('click', async () => {
+          const pm = paymentMethodDropdown.value;
+          const phone = document.getElementById('momoPhone').value;
+          const rp = document.getElementById('receiptType').value;
+
+          if (pm === 'Mobile Money' && !phone) return showToast('Please enter customer MoMo number', 'warning');
+
+          const btn = document.getElementById('confirmPayBtn');
+          btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Processing...';
+          btn.disabled = true;
+
+          const payload = {
+              cartItems: cart.map(c => ({ product_id: c.product_id, quantity: c.quantity })),
+              customer_id: assignedCustomer ? assignedCustomer.user_id : null,
+              payment_method: pm,
+              phone_number: phone,
+              receipt_type: rp
+          };
+
+          try {
+              const res = await fetchAPI('/sales', {
+                  method: 'POST',
+                  body: JSON.stringify(payload)
+              });
+              showToast(res.message, 'success');
+              
+              // Clear state
+              cart = []; renderCart();
+              assignedCustomer = null; custSearch.value = ''; document.getElementById('customerSelected').textContent = '';
+              modal.style.display = 'none';
+
+              // Open Receipt Viewer (mock popup)
+              alert(`Receipt generated!\n\nTransaction: ${res.receipt.transaction_id}\nTotal: GHS ${res.receipt.total_amount.toFixed(2)}\nPayment: ${res.receipt.payment_status} via ${res.receipt.payment_method}\nItems: ${res.receipt.items.length}`);
+              
+              // Refresh products stock
+              products = await fetchAPI('/products');
+              renderProducts(products);
+
+          } catch(err) {
+              showToast(err.message, 'error');
+          } finally {
+              btn.innerHTML = 'Confirm Sale';
+              btn.disabled = false;
+          }
+      });
+      // Expose globally for inline onclick
+      window.updateQty = updateQty;
+    });
+  </script>
+</body>
+</html>

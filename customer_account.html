@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>My Account - Capstone POS</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <div class="app-container">
+    <aside class="sidebar">
+      <div class="sidebar-header"><i class="fa-solid fa-store" style="margin-right: 10px;"></i> POS Store</div>
+      <ul class="nav-links">
+        <li class="nav-item"><a href="customer_account.html" class="nav-link active"><i class="fa-solid fa-user"></i> My Account</a></li>
+      </ul>
+      <div style="padding: 20px;"><button class="btn btn-danger logout-btn" style="width: 100%;"><i class="fa-solid fa-right-from-bracket"></i> Logout</button></div>
+    </aside>
+
+    <main class="main-content">
+      <header class="top-header">
+        <h2>Customer Portal</h2>
+        <div class="user-profile">
+          <div class="user-name-display" style="font-weight: 600;">Loading...</div>
+          <div class="user-avatar user-name-display">U</div>
+        </div>
+      </header>
+
+      <div class="content-wrapper animate-fade-in">
+        
+        <div class="grid-2" style="margin-bottom: 2rem;">
+            <div class="glass-card">
+                <h3 style="margin-bottom: 1rem; color: var(--accent-primary);">Account Information</h3>
+                <p><strong>Name:</strong> <span id="info_name">Loading...</span></p>
+                <p><strong>Email:</strong> <span id="info_email">Loading...</span></p>
+                <p><strong>Role:</strong> Customer</p>
+            </div>
+            <div class="glass-card metric-card">
+                <div class="icon" style="color: var(--success);"><i class="fa-solid fa-bag-shopping"></i></div>
+                <h3>Total Lifetime Purchases</h3>
+                <div class="value" id="lifetime_purchases">0</div>
+            </div>
+        </div>
+
+        <div class="glass-card table-container">
+          <h3 style="margin-bottom: 1.5rem;">Purchase History</h3>
+          <table class="table" id="historyTable">
+            <thead>
+              <tr>
+                <th>Transaction ID</th>
+                <th>Date</th>
+                <th>Items Purchased</th>
+                <th>Payment Method</th>
+                <th>Total Amount</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+               <tr><td colspan="6" style="text-align: center;">Loading history...</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+      </div>
+    </main>
+  </div>
+
+  <!-- Receipt Modal for details -->
+  <div id="receiptModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 1000; align-items: center; justify-content: center;">
+      <div class="glass-card" style="width: 90%; max-width: 400px;">
+          <h3 style="margin-bottom: 1.5rem; text-align: center;">Transaction Details</h3>
+          <div id="receiptContent" style="margin-bottom: 2rem; background: var(--bg-primary); padding: 1rem; border-radius: 8px; font-family: monospace;">
+              <!-- Items list injected here -->
+          </div>
+          <button class="btn btn-primary" onclick="document.getElementById('receiptModal').style.display='none'" style="width: 100%;">Close</button>
+      </div>
+  </div>
+
+  <script src="app.js"></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', async () => {
+      const user = requireAuth(['customer']);
+      if (!user) return;
+
+      document.getElementById('info_name').textContent = user.name;
+      document.getElementById('info_email').textContent = user.email;
+
+      const tb = document.querySelector('#historyTable tbody');
+      
+      try {
+          const hist = await fetchAPI('/customers/history');
+          document.getElementById('lifetime_purchases').textContent = hist.length;
+
+          if (hist.length === 0) {
+              return tb.innerHTML = '<tr><td colspan="6" align="center">You have not made any purchases yet.</td></tr>';
+          }
+
+          window.showDetails = (itemsJson) => {
+              const items = JSON.parse(decodeURIComponent(itemsJson));
+              const html = items.map(i => `<div>${i.quantity}x ${i.product_name} - GHS ${parseFloat(i.subtotal).toFixed(2)}</div>`).join('');
+              document.getElementById('receiptContent').innerHTML = html;
+              document.getElementById('receiptModal').style.display = 'flex';
+          };
+
+          tb.innerHTML = hist.map(h => {
+             const badgeStatus = h.status === 'SUCCESSFUL' ? 'badge-success' : 'badge-warning';
+             // Store items safely for display
+             const encodedItems = encodeURIComponent(JSON.stringify(h.items));
+
+             return `
+               <tr>
+                 <td>TXN-${h.sale_id} <button class="btn btn-secondary" style="padding: 2px 5px; font-size: 0.7rem; margin-left: 10px;" onclick="showDetails('${encodedItems}')">View Items</button></td>
+                 <td>${new Date(h.created_at).toLocaleString()}</td>
+                 <td>${h.items.length} item(s)</td>
+                 <td>${h.payment_method}</td>
+                 <td><strong>GHS ${parseFloat(h.total_amount).toFixed(2)}</strong></td>
+                 <td><span class="badge ${badgeStatus}">${h.status}</span></td>
+               </tr>
+             `;
+          }).join('');
+      } catch(err) {
+          showToast('Failed to load purchase history', 'error');
+      }
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dashboard - Capstone POS</title>
+  <link rel="stylesheet" href="style.css">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+
+  <div class="app-container">
+    <!-- Sidebar -->
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        <i class="fa-solid fa-store" style="margin-right: 10px;"></i> POS Flow
+      </div>
+      <ul class="nav-links">
+        <li class="nav-item"><a href="dashboard.html" class="nav-link active"><i class="fa-solid fa-chart-line"></i> Dashboard</a></li>
+        <li class="nav-item" id="nav-pos"><a href="pos.html" class="nav-link"><i class="fa-solid fa-cash-register"></i> POS Screen</a></li>
+        <li class="nav-item"><a href="products.html" class="nav-link"><i class="fa-solid fa-box"></i> Products & Inventory</a></li>
+        <li class="nav-item"><a href="users.html" class="nav-link"><i class="fa-solid fa-users"></i> Users & Customers</a></li>
+        <li class="nav-item"><a href="reports.html" class="nav-link"><i class="fa-solid fa-file-invoice"></i> Reports</a></li>
+      </ul>
+      <div style="padding: 20px;">
+        <button class="btn btn-danger logout-btn" style="width: 100%;"><i class="fa-solid fa-right-from-bracket"></i> Logout</button>
+      </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="main-content">
+      <header class="top-header">
+        <h2>Dashboard Overview</h2>
+        <div class="user-profile">
+          <div>
+            <div class="user-name-display" style="font-weight: 600;">Loading...</div>
+            <div id="userRole" style="font-size: 0.8rem; color: var(--accent-primary); text-transform: capitalize;">Role</div>
+          </div>
+          <div class="user-avatar user-name-display">U</div>
+        </div>
+      </header>
+
+      <div class="content-wrapper animate-fade-in">
+        
+        <!-- Summary Cards -->
+        <div class="grid-4" style="margin-bottom: 2rem;">
+          <div class="glass-card metric-card">
+            <div class="icon" style="color: var(--success);"><i class="fa-solid fa-cedi-sign"></i></div>
+            <h3>Sales Today</h3>
+            <div class="value" id="metrics-sales">GHS 0.00</div>
+          </div>
+          <div class="glass-card metric-card">
+            <div class="icon" style="color: var(--info);"><i class="fa-solid fa-receipt"></i></div>
+            <h3>Transactions Today</h3>
+            <div class="value" id="metrics-tx">0</div>
+          </div>
+          <div class="glass-card metric-card">
+            <div class="icon" style="color: var(--warning);"><i class="fa-solid fa-star"></i></div>
+            <h3>Best Selling Product</h3>
+            <div class="value" id="metrics-best" style="font-size: 1.5rem;">-</div>
+          </div>
+          <div class="glass-card metric-card">
+            <div class="icon" style="color: var(--danger);"><i class="fa-solid fa-triangle-exclamation"></i></div>
+            <h3>Low Stock Items</h3>
+            <div class="value" id="metrics-low">0</div>
+          </div>
+        </div>
+
+        <!-- Charts Row -->
+        <div class="grid-2" style="margin-bottom: 2rem;">
+          <div class="glass-card">
+            <h3 style="margin-bottom: 1rem;">Daily Sales Trend (Last 7 Days)</h3>
+            <canvas id="salesTrendChart" height="250"></canvas>
+          </div>
+          <div class="glass-card">
+            <h3 style="margin-bottom: 1rem;">Top Selling Products</h3>
+            <canvas id="topProductsChart" height="250"></canvas>
+          </div>
+        </div>
+
+        <div class="glass-card" style="width: 50%; margin-bottom: 2rem;">
+            <h3 style="margin-bottom: 1rem;">Payment Methods Breakdown</h3>
+            <canvas id="paymentsChart" height="250"></canvas>
+        </div>
+
+      </div>
+    </main>
+  </div>
+
+  <script src="app.js"></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', async () => {
+      const user = requireAuth(['admin', 'manager']);
+      if (!user) return;
+      document.getElementById('userRole').textContent = user.role;
+
+      // Disable or hide elements based on role if needed
+      // Actually Admin & Manager have full access to these dashboard charts
+
+      try {
+        // Fetch Summary
+        const summary = await fetchAPI('/dashboard/summary');
+        document.getElementById('metrics-sales').textContent = `GHS ${summary.sales_today.toFixed(2)}`;
+        document.getElementById('metrics-tx').textContent = summary.transactions_today;
+        document.getElementById('metrics-best').textContent = summary.best_selling_product;
+        document.getElementById('metrics-low').textContent = summary.low_stock_count;
+
+        // Fetch Data for Charts
+        const [trendData, topData, payData] = await Promise.all([
+           fetchAPI('/dashboard/sales-trend'),
+           fetchAPI('/dashboard/top-products'),
+           fetchAPI('/dashboard/payment-methods')
+        ]);
+
+        // Common Chart Defaults
+        Chart.defaults.color = '#cbd5e1';
+        Chart.defaults.scale.grid.color = 'rgba(255, 255, 255, 0.05)';
+
+        // 1. Sales Trend Line Chart
+        const labelsTrend = trendData.map(d => d.date.split('T')[0]);
+        const dataTrend = trendData.map(d => parseFloat(d.total));
+        new Chart(document.getElementById('salesTrendChart'), {
+            type: 'line',
+            data: {
+                labels: labelsTrend,
+                datasets: [{
+                    label: 'Daily Sales (GHS)',
+                    data: dataTrend,
+                    borderColor: '#3b82f6',
+                    backgroundColor: 'rgba(59, 130, 246, 0.2)',
+                    fill: true,
+                    tension: 0.4
+                }]
+            },
+            options: { responsive: true, maintainAspectRatio: false }
+        });
+
+        // 2. Top Products Bar Chart
+        const labelsTop = topData.map(d => d.product_name);
+        const dataTop = topData.map(d => parseInt(d.total_sold));
+        new Chart(document.getElementById('topProductsChart'), {
+            type: 'bar',
+            data: {
+                labels: labelsTop,
+                datasets: [{
+                    label: 'Units Sold',
+                    data: dataTop,
+                    backgroundColor: '#8b5cf6',
+                    borderRadius: 4
+                }]
+            },
+            options: { responsive: true, maintainAspectRatio: false }
+        });
+
+        // 3. Payment Methods Pie Chart
+        const labelsPay = payData.map(d => d.payment_method);
+        const dataPay = payData.map(d => parseInt(d.usage_count));
+        new Chart(document.getElementById('paymentsChart'), {
+            type: 'doughnut',
+            data: {
+                labels: labelsPay,
+                datasets: [{
+                    data: dataPay,
+                    backgroundColor: ['#10b981', '#f59e0b', '#3b82f6'],
+                    borderWidth: 0
+                }]
+            },
+            options: { responsive: true, maintainAspectRatio: false }
+        });
+
+      } catch (error) {
+         showToast('Failed to load dashboard data: ' + error.message, 'error');
+      }
+
+    });
+  </script>
+</body>
+</html>

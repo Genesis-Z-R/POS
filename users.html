@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Users & Customers - Capstone POS</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <div class="app-container">
+    <aside class="sidebar">
+      <div class="sidebar-header"><i class="fa-solid fa-store" style="margin-right: 10px;"></i> POS Flow</div>
+      <ul class="nav-links">
+        <li class="nav-item"><a href="dashboard.html" class="nav-link"><i class="fa-solid fa-chart-line"></i> Dashboard</a></li>
+        <li class="nav-item"><a href="pos.html" class="nav-link"><i class="fa-solid fa-cash-register"></i> POS Screen</a></li>
+        <li class="nav-item"><a href="products.html" class="nav-link"><i class="fa-solid fa-box"></i> Products & Inventory</a></li>
+        <li class="nav-item"><a href="users.html" class="nav-link active"><i class="fa-solid fa-users"></i> Users & Customers</a></li>
+        <li class="nav-item"><a href="reports.html" class="nav-link"><i class="fa-solid fa-file-invoice"></i> Reports</a></li>
+      </ul>
+      <div style="padding: 20px;"><button class="btn btn-danger logout-btn" style="width: 100%;"><i class="fa-solid fa-right-from-bracket"></i> Logout</button></div>
+    </aside>
+
+    <main class="main-content">
+      <header class="top-header">
+        <h2>Users Management</h2>
+        <div class="user-profile">
+          <div class="user-name-display" style="font-weight: 600;">Loading...</div>
+          <div class="user-avatar user-name-display">U</div>
+        </div>
+      </header>
+
+      <div class="content-wrapper animate-fade-in">
+        
+        <div style="margin-bottom: 2rem; display: flex; justify-content: space-between;">
+           <h3 style="color: var(--text-secondary)">System Accounts (Admin Only)</h3>
+           <button class="btn btn-primary" id="newEmplBtn"><i class="fa-solid fa-user-plus"></i> New Employee</button>
+        </div>
+
+        <div class="glass-card table-container">
+          <table class="table" id="usersTable">
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Email</th>
+                <th>Role</th>
+                <th>Created At</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+               <tr><td colspan="5" style="text-align: center;">Loading users...</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+      </div>
+    </main>
+  </div>
+
+  <!-- Create Employee Modal -->
+  <div id="emplModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 1000; align-items: center; justify-content: center;">
+      <div class="glass-card" style="width: 90%; max-width: 450px;">
+          <h3 style="margin-bottom: 1.5rem;">Add New Employee</h3>
+          <form id="emplForm">
+             <div class="form-group"><label class="form-label">Full Name</label><input type="text" id="empl_name" class="form-control" required></div>
+             <div class="form-group"><label class="form-label">Email</label><input type="email" id="empl_email" class="form-control" required></div>
+             <div class="form-group"><label class="form-label">Role</label>
+                 <select id="empl_role" class="form-control" style="background: var(--bg-tertiary);">
+                     <option value="cashier">Cashier</option>
+                     <option value="manager">Manager</option>
+                     <option value="admin">Admin</option>
+                 </select>
+             </div>
+             <div class="form-group"><label class="form-label">Temporary Password</label><input type="password" id="empl_pwd" class="form-control" required></div>
+             <div style="display: flex; gap: 1rem; margin-top: 2rem;">
+                 <button type="button" class="btn btn-secondary" onclick="document.getElementById('emplModal').style.display='none'" style="flex: 1;">Cancel</button>
+                 <button type="submit" class="btn btn-primary" style="flex: 1;">Create Account</button>
+             </div>
+          </form>
+      </div>
+  </div>
+
+  <script src="app.js"></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', async () => {
+      const user = requireAuth(['admin']); // Only admins can see this
+      if (!user) return;
+
+      const tb = document.querySelector('#usersTable tbody');
+      
+      async function loadUsers() {
+         try {
+            const list = await fetchAPI('/users');
+            tb.innerHTML = '';
+            list.forEach(u => {
+                let badge = 'badge-secondary';
+                if(u.role === 'admin') badge = 'badge-danger';
+                if(u.role === 'manager') badge = 'badge-warning';
+                if(u.role === 'customer') badge = 'badge-success';
+
+                tb.innerHTML += `
+                  <tr>
+                    <td>${u.name}</td>
+                    <td>${u.email}</td>
+                    <td><span class="badge ${badge}" style="text-transform: capitalize;">${u.role}</span></td>
+                    <td>${new Date(u.created_at).toLocaleDateString()}</td>
+                    <td>
+                      ${u.role !== 'admin' || user.id !== u.user_id ? 
+                          `<button class="btn btn-danger" style="padding: 0.3rem 0.6rem; font-size: 0.8rem;" onclick="deleteUser(${u.user_id})"><i class="fa-solid fa-trash"></i></button>`
+                          : '<em>You</em>'
+                       }
+                    </td>
+                  </tr>
+                `;
+            });
+         } catch(e) { showToast('Error loading users. Must be admin.', 'error'); }
+      }
+
+      window.deleteUser = async (id) => {
+          if(confirm('Are you sure you want to deactivate/delete this user?')) {
+              try {
+                  await fetchAPI(`/users/${id}`, { method: 'DELETE' });
+                  showToast('User deleted', 'success');
+                  loadUsers();
+              } catch(e) { showToast(e.message, 'error'); }
+          }
+      };
+
+      // Modal Logic
+      const modal = document.getElementById('emplModal');
+      document.getElementById('newEmplBtn').addEventListener('click', () => {
+          document.getElementById('emplForm').reset();
+          modal.style.display = 'flex';
+      });
+
+      document.getElementById('emplForm').addEventListener('submit', async (e) => {
+          e.preventDefault();
+          const p = {
+              name: document.getElementById('empl_name').value,
+              email: document.getElementById('empl_email').value,
+              role: document.getElementById('empl_role').value,
+              password: document.getElementById('empl_pwd').value
+          };
+          try {
+              await fetchAPI('/users', { method: 'POST', body: JSON.stringify(p) });
+              showToast('Account created successfully', 'success');
+              modal.style.display = 'none';
+              loadUsers();
+          } catch(err) { showToast(err.message, 'error'); }
+      });
+
+      loadUsers();
+    });
+  </script>
+</body>
+</html>

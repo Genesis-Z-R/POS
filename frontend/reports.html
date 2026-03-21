@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Reports - Capstone POS</title>
+  <link rel="stylesheet" href="style.css">
+  <style>
+    .report-tabs { display: flex; gap: 1rem; margin-bottom: 2rem; border-bottom: 1px solid var(--glass-border); padding-bottom: 1rem; }
+    .tab { background: none; border: none; color: var(--text-muted); font-size: 1.1rem; cursor: pointer; padding: 0.5rem 1rem; border-radius: var(--border-radius-sm); transition: all 0.3s; }
+    .tab.active { background: var(--accent-gradient); color: white; }
+    .tab-content { display: none; }
+    .tab-content.active { display: block; }
+  </style>
+</head>
+<body>
+
+  <div class="app-container">
+    <aside class="sidebar">
+      <div class="sidebar-header"><i class="fa-solid fa-store" style="margin-right: 10px;"></i> POS Flow</div>
+      <ul class="nav-links">
+        <li class="nav-item"><a href="dashboard.html" class="nav-link"><i class="fa-solid fa-chart-line"></i> Dashboard</a></li>
+        <li class="nav-item"><a href="pos.html" class="nav-link"><i class="fa-solid fa-cash-register"></i> POS Screen</a></li>
+        <li class="nav-item"><a href="products.html" class="nav-link"><i class="fa-solid fa-box"></i> Products & Inventory</a></li>
+        <li class="nav-item"><a href="users.html" class="nav-link"><i class="fa-solid fa-users"></i> Users & Customers</a></li>
+        <li class="nav-item"><a href="reports.html" class="nav-link active"><i class="fa-solid fa-file-invoice"></i> Reports</a></li>
+      </ul>
+      <div style="padding: 20px;"><button class="btn btn-danger logout-btn" style="width: 100%;"><i class="fa-solid fa-right-from-bracket"></i> Logout</button></div>
+    </aside>
+
+    <main class="main-content">
+      <header class="top-header">
+        <h2>System Reports</h2>
+        <div class="user-profile">
+          <div class="user-name-display" style="font-weight: 600;">Loading...</div>
+          <div class="user-avatar user-name-display">U</div>
+        </div>
+      </header>
+
+      <div class="content-wrapper animate-fade-in">
+        
+        <div class="report-tabs">
+            <button class="tab active" data-target="salesTab">Daily Sales</button>
+            <button class="tab" data-target="inventoryTab">Inventory Status</button>
+            <button class="tab" data-target="topProdTab">Top Products</button>
+            <button class="btn btn-secondary" onclick="window.print()" style="margin-left: auto;"><i class="fa-solid fa-print"></i> Print Report</button>
+        </div>
+
+        <!-- Sales Report -->
+        <div id="salesTab" class="tab-content active glass-card table-container">
+          <h3 style="margin-bottom: 1.5rem;">Daily Sales Log</h3>
+          <table class="table" id="salesTable">
+            <thead>
+              <tr><th>Transaction ID</th><th>Time</th><th>Cashier</th><th>Customer</th><th>Method</th><th>Total</th></tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+
+        <!-- Inventory Report -->
+        <div id="inventoryTab" class="tab-content glass-card table-container">
+          <h3 style="margin-bottom: 1.5rem;">Inventory Status</h3>
+          <table class="table" id="inventoryTable">
+            <thead>
+              <tr><th>Name</th><th>Category</th><th>Price</th><th>Stock</th><th>Min Stock</th><th>Status</th></tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+
+        <!-- Top Products Report -->
+        <div id="topProdTab" class="tab-content glass-card table-container">
+          <h3 style="margin-bottom: 1.5rem;">Top Performing Products</h3>
+          <table class="table" id="topProdTable">
+            <thead>
+              <tr><th>Barcode</th><th>Product</th><th>Units Sold</th></tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+
+      </div>
+    </main>
+  </div>
+
+  <script src="app.js"></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', async () => {
+      const user = requireAuth(['admin', 'manager']);
+      if (!user) return;
+
+      // Tabs Logic
+      document.querySelectorAll('.tab').forEach(btn => {
+          btn.addEventListener('click', (e) => {
+              document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+              document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+              e.target.classList.add('active');
+              document.getElementById(e.target.dataset.target).classList.add('active');
+          });
+      });
+
+      // Fetchers
+      const loadSales = async () => {
+         try {
+             const data = await fetchAPI('/reports/daily-sales');
+             const tb = document.querySelector('#salesTable tbody');
+             if(data.length === 0) return tb.innerHTML = '<tr><td colspan="6" align="center">No sales today.</td></tr>';
+             tb.innerHTML = data.map(r => `<tr>
+                 <td>TXN-${r.sale_id}</td>
+                 <td>${new Date(r.created_at).toLocaleTimeString()}</td>
+                 <td>${r.cashier_name || 'Sys Admin'}</td>
+                 <td>${r.customer_name || 'Walk-in'}</td>
+                 <td>${r.payment_method}</td>
+                 <td><strong>GHS ${parseFloat(r.total_amount).toFixed(2)}</strong></td>
+             </tr>`).join('');
+         } catch(e) {}
+      };
+
+      const loadInv = async () => {
+         try {
+             const data = await fetchAPI('/reports/inventory');
+             const tb = document.querySelector('#inventoryTable tbody');
+             tb.innerHTML = data.map(r => `<tr>
+                 <td>${r.product_name}</td>
+                 <td>${r.category || '-'}</td>
+                 <td>GHS ${parseFloat(r.price).toFixed(2)}</td>
+                 <td>${r.quantity}</td>
+                 <td>${r.minimum_stock}</td>
+                 <td><span class="badge ${r.status === 'LOW' ? 'badge-danger' : 'badge-success'}">${r.status}</span></td>
+             </tr>`).join('');
+         } catch(e) {}
+      };
+
+      const loadTop = async () => {
+         try {
+             const data = await fetchAPI('/reports/top-products');
+             const tb = document.querySelector('#topProdTable tbody');
+             tb.innerHTML = data.map(r => `<tr>
+                 <td>${r.barcode || '-'}</td>
+                 <td>${r.product_name}</td>
+                 <td>${r.units_sold}</td>
+             </tr>`).join('');
+         } catch(e) {}
+      };
+
+      loadSales();
+      loadInv();
+      loadTop();
+    });
+  </script>
+</body>
+</html>
