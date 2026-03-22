@@ -40,7 +40,7 @@ const MoMoService = {
 
       // Ensure axios is mocking if the endpoint isn't real, but we will wrap it
       // in a simulated response if API key is not strictly set.
-      if (!subscriptionKey || subscriptionKey === 'your_sandbox_api_key_here') {
+      if (!subscriptionKey || subscriptionKey === '3cdf9634032e439095e66c10ae91f2b6') {
         console.warn("Using simulated MoMo Request; API key not configured.");
         // Simulate successful pending request
         return {
